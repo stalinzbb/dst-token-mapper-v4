@@ -10,6 +10,43 @@ A Figma plugin to scan pages/selections for detached styles and suggest matching
 - **Library Conflict Resolution**: Identifies and helps resolve conflicts when the same value exists in multiple libraries.
 - **Bulk Application**: Apply multiple fixes at once with a single click.
 
+## Understanding Detached Styles
+
+Detached styles are styling properties applied directly to elements without using Figma's style system or variables. The plugin follows a "variable-first" mentality, prioritizing the use of variables over direct styling.
+
+### What Counts as a Detached Style
+
+#### Colors
+- Any fill or stroke color applied as a direct hex value (#FF0000) or rgba value instead of using a color variable
+- Example: Using `#1A73E8` directly instead of `$primary-blue` variable
+
+#### Typography
+- Text elements with individual font properties (family, size, weight, line height) set directly
+- Example: Setting "Inter, 16px, Regular" manually instead of using a text style like `$body-text` or `$heading-small`
+- Proper usage would be applying comprehensive text styles like `Heading XL` or `Body Small` that encapsulate all typography properties
+
+#### Spacing
+- Auto layout spacing, padding, or margins applied as direct pixel values
+- Example: Setting "16px" spacing directly instead of using a spacing variable like `$spacing-md`
+
+#### Corner Radius
+- Border radius values applied directly to elements
+- Example: Setting "8px" corner radius instead of using a radius variable like `$radius-md`
+
+### Why Detached Styles Are Problematic
+
+1. **Inconsistency**: Creates visual inconsistencies across the design
+2. **Maintenance**: Makes global updates difficult or impossible
+3. **Design System Integrity**: Undermines the purpose of having a design system
+4. **Handoff**: Complicates developer handoff and implementation
+
+### Benefits of Using Variables Instead
+
+1. **Consistency**: Ensures visual consistency across the design
+2. **Efficiency**: Allows for global updates with a single change
+3. **Theming**: Enables easy theme switching (light/dark mode, brand variations)
+4. **Collaboration**: Improves team collaboration with standardized design tokens
+
 ## Limitations
 
 - **Node Count Limit**: Maximum of 1000 nodes can be scanned at once to maintain performance.

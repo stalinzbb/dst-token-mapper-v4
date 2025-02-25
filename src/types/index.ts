@@ -27,7 +27,10 @@ export interface VariableMatch {
   value: string;
   variableId?: string;
   variableName?: string;
+  styleId?: string;
+  styleName?: string;
   exactMatch?: boolean;
+  isStyle?: boolean; // Indicates if this is a style match rather than a variable match
 }
 
 // Result of matching process
@@ -41,7 +44,7 @@ export interface MatchResult {
 export interface UIMessage {
   type: 'scan' | 'apply-fixes' | 'cancel';
   useSelection?: boolean;
-  fixes?: { detachedStyleId: string; variableId: string }[];
+  fixes?: { detachedStyleId: string; variableId: string; isStyle?: boolean }[];
 }
 
 export interface PluginMessage {
@@ -49,6 +52,15 @@ export interface PluginMessage {
   detachedStyles?: DetachedStyle[];
   matchResults?: MatchResult[];
   errorMessage?: string;
+}
+
+// Style information
+export interface StyleInfo {
+  id: string;
+  name: string;
+  value: any;
+  category: StyleCategory;
+  styleType: 'FILL' | 'TEXT' | 'EFFECT' | 'GRID';
 }
 
 // Library information
@@ -62,6 +74,9 @@ export interface LibraryInfo {
       value: any;
       category: StyleCategory;
     }
+  };
+  styles: {
+    [key: string]: StyleInfo
   };
 }
 

@@ -1,6 +1,6 @@
-import { DetachedStyle, LibraryInfo, MatchResult, StyleCategory, VariableMatch } from '../../types';
+import { DetachedStyle, LibraryInfo, MatchResult, StyleCategory, StyleInfo, VariableMatch } from '../../types';
 import { colorsMatch, normalizeHexColor } from '../../utils/colorUtils';
-import { detectConflicts } from '../library';
+import { checkForConflicts } from '../library';
 
 /**
  * Finds matches for detached styles in libraries
@@ -12,8 +12,14 @@ export const findMatches = (
   detachedStyles: DetachedStyle[],
   libraries: LibraryInfo[]
 ): MatchResult[] => {
+  // Convert libraries array to record for checkForConflicts
+  const librariesRecord: Record<string, LibraryInfo> = {};
+  libraries.forEach(library => {
+    librariesRecord[library.id] = library;
+  });
+  
   // Detect conflicts between libraries
-  const conflicts = detectConflicts(libraries);
+  const conflicts = checkForConflicts(librariesRecord);
   
   // Find matches for each detached style
   return detachedStyles.map(detachedStyle => {
@@ -26,7 +32,7 @@ export const findMatches = (
           ? match.value.toLowerCase() 
           : JSON.stringify(match.value);
         
-        return conflicts[value] && conflicts[value].libraryIds.length > 1;
+        return conflicts[value] && conflicts[value].length > 1;
       });
     
     return {
@@ -85,6 +91,7 @@ const findColorMatches = (
   const detachedColor = normalizeHexColor(detachedStyle.value);
   
   for (const library of libraries) {
+    // Check for matching variables
     for (const variableId in library.variables) {
       const variable = library.variables[variableId];
       
@@ -103,6 +110,30 @@ const findColorMatches = (
           value: variable.value,
           variableId: variable.id,
           variableName: variable.name,
+          exactMatch: true
+        });
+      }
+    }
+    
+    // Check for matching styles
+    for (const styleId in library.styles) {
+      const style = library.styles[styleId];
+      
+      // Skip non-color styles
+      if (style.category !== StyleCategory.COLOR) {
+        continue;
+      }
+      
+      // Check if colors match
+      if (typeof style.value === 'string' && colorsMatch(style.value, detachedColor)) {
+        matches.push({
+          id: style.id,
+          name: style.name,
+          libraryId: library.id,
+          libraryName: library.name,
+          value: style.value,
+          styleId: style.id,
+          styleName: style.name,
           exactMatch: true
         });
       }
@@ -127,6 +158,7 @@ const findTypographyMatches = (
   // For now, we'll do a simple string comparison
   // In the future, we could parse the typography values and do more sophisticated matching
   for (const library of libraries) {
+    // Check for matching variables
     for (const variableId in library.variables) {
       const variable = library.variables[variableId];
       
@@ -146,6 +178,31 @@ const findTypographyMatches = (
           value: variable.value,
           variableId: variable.id,
           variableName: variable.name,
+          exactMatch: true
+        });
+      }
+    }
+    
+    // Check for matching styles
+    for (const styleId in library.styles) {
+      const style = library.styles[styleId];
+      
+      // Skip non-typography styles
+      if (style.category !== StyleCategory.TYPOGRAPHY) {
+        continue;
+      }
+      
+      // Check if typography values match
+      if (typeof style.value === 'string' && 
+          style.value.toLowerCase() === detachedStyle.value.toLowerCase()) {
+        matches.push({
+          id: style.id,
+          name: style.name,
+          libraryId: library.id,
+          libraryName: library.name,
+          value: style.value,
+          styleId: style.id,
+          styleName: style.name,
           exactMatch: true
         });
       }
@@ -175,6 +232,7 @@ const findSpacingMatches = (
   }
   
   for (const library of libraries) {
+    // Check for matching variables
     for (const variableId in library.variables) {
       const variable = library.variables[variableId];
       
@@ -207,6 +265,40 @@ const findSpacingMatches = (
         });
       }
     }
+    
+    // Check for matching styles
+    for (const styleId in library.styles) {
+      const style = library.styles[styleId];
+      
+      // Skip non-spacing styles
+      if (style.category !== StyleCategory.SPACING) {
+        continue;
+      }
+      
+      // Check if spacing values match
+      let styleValue: number;
+      
+      if (typeof style.value === 'number') {
+        styleValue = style.value;
+      } else if (typeof style.value === 'string') {
+        styleValue = parseFloat(style.value);
+      } else {
+        continue;
+      }
+      
+      if (!isNaN(styleValue) && styleValue === spacingValue) {
+        matches.push({
+          id: style.id,
+          name: style.name,
+          libraryId: library.id,
+          libraryName: library.name,
+          value: String(style.value),
+          styleId: style.id,
+          styleName: style.name,
+          exactMatch: true
+        });
+      }
+    }
   }
   
   return matches;
@@ -232,6 +324,7 @@ const findCornerRadiusMatches = (
   }
   
   for (const library of libraries) {
+    // Check for matching variables
     for (const variableId in library.variables) {
       const variable = library.variables[variableId];
       
@@ -260,6 +353,40 @@ const findCornerRadiusMatches = (
           value: String(variable.value),
           variableId: variable.id,
           variableName: variable.name,
+          exactMatch: true
+        });
+      }
+    }
+    
+    // Check for matching styles
+    for (const styleId in library.styles) {
+      const style = library.styles[styleId];
+      
+      // Skip non-corner radius styles
+      if (style.category !== StyleCategory.CORNER_RADIUS) {
+        continue;
+      }
+      
+      // Check if corner radius values match
+      let styleValue: number;
+      
+      if (typeof style.value === 'number') {
+        styleValue = style.value;
+      } else if (typeof style.value === 'string') {
+        styleValue = parseFloat(style.value);
+      } else {
+        continue;
+      }
+      
+      if (!isNaN(styleValue) && styleValue === radiusValue) {
+        matches.push({
+          id: style.id,
+          name: style.name,
+          libraryId: library.id,
+          libraryName: library.name,
+          value: String(style.value),
+          styleId: style.id,
+          styleName: style.name,
           exactMatch: true
         });
       }

@@ -1,6 +1,7 @@
 // import { v4 as uuidv4 } from 'uuid';
 import { DetachedStyle, StyleCategory, NODE_COUNT_LIMIT, ScanOptions, ScanResult, DetachedStylesMap } from '../../types';
 import { extractColorFromPaint } from '../../utils/colorUtils';
+import { logger } from '../logger';
 
 // Simple ID generator to replace UUID
 function generateSimpleId(): string {
@@ -122,7 +123,7 @@ export function scanForDetachedStyles(
     
     return result;
   } catch (error) {
-    console.error('Error scanning for detached styles:', error);
+    logger.error('Error scanning for detached styles:', error);
     return result;
   }
 }
@@ -180,7 +181,7 @@ function processNode(
       }
     }
   } catch (error) {
-    console.error('Error processing node:', error);
+    logger.error('Error processing node:', error);
   }
 }
 
@@ -197,6 +198,18 @@ function hasVariableBinding(node: SceneNode, property: string): boolean {
 }
 
 /**
+ * Check if a node has a style applied for a property
+ */
+function hasStyleApplied(node: SceneNode, styleProperty: string): boolean {
+  try {
+    // @ts-ignore - styleId properties are available but might not be in typings
+    return node[styleProperty] && node[styleProperty] !== '' && node[styleProperty] !== figma.mixed;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
  * Extracts detached fill styles from a node
  * @param node The node to extract from
  * @param detachedStyles Array to collect detached styles
@@ -205,8 +218,8 @@ const extractDetachedFillStyles = (
   node: SceneNode & { fills: readonly Paint[] },
   detachedStyles: DetachedStylesMap
 ): void => {
-  // Skip if the node has a fill style applied
-  if ('fillStyleId' in node && node.fillStyleId !== '') {
+  // Skip if the node has a fill style applied or variable binding
+  if (hasStyleApplied(node, 'fillStyleId') || hasVariableBinding(node, 'fills')) {
     return;
   }
   
@@ -241,8 +254,8 @@ const extractDetachedTextStyles = (
   node: TextNode,
   detachedStyles: DetachedStylesMap
 ): void => {
-  // Skip if the node has a text style applied
-  if (node.textStyleId !== '' && node.textStyleId !== figma.mixed) {
+  // Skip if the node has a text style applied or variable binding
+  if (hasStyleApplied(node, 'textStyleId') || hasVariableBinding(node, 'fontName') || hasVariableBinding(node, 'fontSize')) {
     return;
   }
   
@@ -280,8 +293,8 @@ const extractDetachedStrokeStyles = (
   node: SceneNode & { strokes: readonly Paint[] },
   detachedStyles: DetachedStylesMap
 ): void => {
-  // Skip if the node has a stroke style applied
-  if ('strokeStyleId' in node && node.strokeStyleId !== '') {
+  // Skip if the node has a stroke style applied or variable binding
+  if (hasStyleApplied(node, 'strokeStyleId') || hasVariableBinding(node, 'strokes')) {
     return;
   }
   
@@ -316,8 +329,8 @@ const extractDetachedEffectStyles = (
   node: SceneNode & { effects: readonly Effect[] },
   detachedStyles: DetachedStylesMap
 ): void => {
-  // Skip if the node has an effect style applied
-  if ('effectStyleId' in node && node.effectStyleId !== '') {
+  // Skip if the node has an effect style applied or variable binding
+  if (hasStyleApplied(node, 'effectStyleId') || hasVariableBinding(node, 'effects')) {
     return;
   }
   
@@ -346,6 +359,11 @@ const extractDetachedCornerRadiusStyles = (
   node: SceneNode & { cornerRadius: number | typeof figma.mixed },
   detachedStyles: DetachedStylesMap
 ): void => {
+  // Skip if the node has a corner radius variable binding
+  if (hasVariableBinding(node, 'cornerRadius')) {
+    return;
+  }
+  
   if (node.cornerRadius !== figma.mixed && node.cornerRadius !== 0) {
     detachedStyles.cornerRadius.push({
       id: generateSimpleId(),
@@ -368,6 +386,11 @@ const extractDetachedSpacingStyles = (
   node: FrameNode & { itemSpacing: number },
   detachedStyles: DetachedStylesMap
 ): void => {
+  // Skip if the node has an item spacing variable binding
+  if (hasVariableBinding(node, 'itemSpacing')) {
+    return;
+  }
+  
   if (node.itemSpacing !== 0) {
     detachedStyles.spacing.push({
       id: generateSimpleId(),

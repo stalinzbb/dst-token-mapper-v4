@@ -1,13 +1,14 @@
 import { DetachedStyle, StyleCategory } from '../../types';
+import { logger } from '../logger';
 
 /**
- * Applies variable fixes to detached styles
+ * Applies variable or style fixes to detached styles
  * @param fixes Array of fixes to apply
  * @param detachedStyles Map of detached styles by ID
  * @returns Object with success status and message
  */
 export const applyFixes = async (
-  fixes: Array<{ detachedStyleId: string, variableId: string }>,
+  fixes: Array<{ detachedStyleId: string, variableId?: string, styleId?: string, isStyle?: boolean }>,
   detachedStyles: Map<string, DetachedStyle>
 ): Promise<{
   success: boolean;
@@ -22,13 +23,25 @@ export const applyFixes = async (
     const detachedStyle = detachedStyles.get(fix.detachedStyleId);
     
     if (!detachedStyle) {
-      console.error(`Detached style not found: ${fix.detachedStyleId}`);
+      logger.error(`Detached style not found: ${fix.detachedStyleId}`);
       errorCount++;
       continue;
     }
     
     try {
-      const success = await applyVariableToNode(detachedStyle, fix.variableId);
+      let success = false;
+      
+      if (fix.isStyle && fix.styleId) {
+        // Apply style
+        success = await applyStyleToNode(detachedStyle, fix.styleId);
+      } else if (fix.variableId) {
+        // Apply variable
+        success = await applyVariableToNode(detachedStyle, fix.variableId);
+      } else {
+        logger.error(`Invalid fix: missing both variableId and styleId`);
+        errorCount++;
+        continue;
+      }
       
       if (success) {
         appliedCount++;
@@ -36,7 +49,7 @@ export const applyFixes = async (
         errorCount++;
       }
     } catch (error) {
-      console.error(`Error applying fix: ${error}`);
+      logger.error(`Error applying fix: ${error}`);
       errorCount++;
     }
   }
@@ -73,7 +86,7 @@ const applyVariableToNode = async (
     const node = figma.getNodeById(detachedStyle.nodeId);
     
     if (!node) {
-      console.error(`Node not found: ${detachedStyle.nodeId}`);
+      logger.error(`Node not found: ${detachedStyle.nodeId}`);
       return false;
     }
     
@@ -88,11 +101,54 @@ const applyVariableToNode = async (
       case StyleCategory.CORNER_RADIUS:
         return applyCornerRadiusVariable(node, detachedStyle, variableId);
       default:
-        console.error(`Unsupported style category: ${detachedStyle.category}`);
+        logger.error(`Unsupported style category: ${detachedStyle.category}`);
         return false;
     }
   } catch (error) {
-    console.error(`Error applying variable: ${error}`);
+    logger.error(`Error applying variable: ${error}`);
+    return false;
+  }
+};
+
+/**
+ * Applies a style to a node
+ * @param detachedStyle The detached style to fix
+ * @param styleId The ID of the style to apply
+ * @returns Promise resolving to success status
+ */
+const applyStyleToNode = async (
+  detachedStyle: DetachedStyle,
+  styleId: string
+): Promise<boolean> => {
+  try {
+    // Get the node
+    const node = figma.getNodeById(detachedStyle.nodeId);
+    
+    if (!node) {
+      logger.error(`Node not found: ${detachedStyle.nodeId}`);
+      return false;
+    }
+    
+    // Apply the style based on the style category
+    switch (detachedStyle.category) {
+      case StyleCategory.COLOR:
+        return applyColorStyle(node, detachedStyle, styleId);
+      case StyleCategory.TYPOGRAPHY:
+        return applyTypographyStyle(node, detachedStyle, styleId);
+      case StyleCategory.SPACING:
+        // Styles don't apply to spacing directly, use variables instead
+        logger.error(`Cannot apply style to spacing property`);
+        return false;
+      case StyleCategory.CORNER_RADIUS:
+        // Styles don't apply to corner radius directly, use variables instead
+        logger.error(`Cannot apply style to corner radius property`);
+        return false;
+      default:
+        logger.error(`Unsupported style category: ${detachedStyle.category}`);
+        return false;
+    }
+  } catch (error) {
+    logger.error(`Error applying style: ${error}`);
     return false;
   }
 };
@@ -146,7 +202,46 @@ const applyColorVariable = (
     
     return true;
   } catch (error) {
-    console.error(`Error applying color variable: ${error}`);
+    logger.error(`Error applying color variable: ${error}`);
+    return false;
+  }
+};
+
+/**
+ * Applies a color style to a node
+ * @param node The node to apply to
+ * @param detachedStyle The detached style
+ * @param styleId The style ID
+ * @returns Success status
+ */
+const applyColorStyle = (
+  node: BaseNode,
+  detachedStyle: DetachedStyle,
+  styleId: string
+): boolean => {
+  try {
+    // Check if the property name indicates a fill or stroke
+    if (detachedStyle.propertyName.startsWith('fill')) {
+      if (!('fillStyleId' in node)) {
+        return false;
+      }
+      
+      // Apply the fill style
+      node.fillStyleId = styleId;
+      return true;
+    } else if (detachedStyle.propertyName.startsWith('stroke')) {
+      if (!('strokeStyleId' in node)) {
+        return false;
+      }
+      
+      // Apply the stroke style
+      node.strokeStyleId = styleId;
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    logger.error(`Error applying color style: ${error}`);
     return false;
   }
 };
@@ -179,7 +274,34 @@ const applyTypographyVariable = (
     
     return true;
   } catch (error) {
-    console.error(`Error applying typography variable: ${error}`);
+    logger.error(`Error applying typography variable: ${error}`);
+    return false;
+  }
+};
+
+/**
+ * Applies a typography style to a node
+ * @param node The node to apply to
+ * @param detachedStyle The detached style
+ * @param styleId The style ID
+ * @returns Success status
+ */
+const applyTypographyStyle = (
+  node: BaseNode,
+  detachedStyle: DetachedStyle,
+  styleId: string
+): boolean => {
+  try {
+    if (node.type !== 'TEXT') {
+      return false;
+    }
+    
+    // Apply the text style
+    node.textStyleId = styleId;
+    
+    return true;
+  } catch (error) {
+    logger.error(`Error applying typography style: ${error}`);
     return false;
   }
 };
@@ -241,7 +363,7 @@ const applySpacingVariable = (
     
     return true;
   } catch (error) {
-    console.error(`Error applying spacing variable: ${error}`);
+    logger.error(`Error applying spacing variable: ${error}`);
     return false;
   }
 };
@@ -277,7 +399,7 @@ const applyCornerRadiusVariable = (
     
     return true;
   } catch (error) {
-    console.error(`Error applying corner radius variable: ${error}`);
+    logger.error(`Error applying corner radius variable: ${error}`);
     return false;
   }
 };
@@ -290,7 +412,7 @@ export function applyFillVariableFix(
   try {
     // Validate fill index
     if (isNaN(fillIndex) || fillIndex < 0 || fillIndex >= (node.fills as Paint[]).length) {
-      console.error(`Invalid fill index: ${fillIndex}`);
+      logger.error(`Invalid fill index: ${fillIndex}`);
       return false;
     }
     
@@ -318,7 +440,7 @@ export function applyFillVariableFix(
     
     return true;
   } catch (error) {
-    console.error('Error applying fill variable fix:', error);
+    logger.error('Error applying fill variable fix:', error);
     return false;
   }
 }
@@ -350,7 +472,7 @@ export function applyStrokeVariableFix(
     
     return true;
   } catch (error) {
-    console.error('Error applying stroke variable fix:', error);
+    logger.error('Error applying stroke variable fix:', error);
     return false;
   }
 }
@@ -382,7 +504,7 @@ export function applyEffectVariableFix(
     
     return true;
   } catch (error) {
-    console.error('Error applying effect variable fix:', error);
+    logger.error('Error applying effect variable fix:', error);
     return false;
   }
 }
@@ -408,7 +530,7 @@ export function applyCornerRadiusVariableFix(
     
     return true;
   } catch (error) {
-    console.error('Error applying corner radius variable fix:', error);
+    logger.error('Error applying corner radius variable fix:', error);
     return false;
   }
 } 

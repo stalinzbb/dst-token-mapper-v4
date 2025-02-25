@@ -16,6 +16,7 @@ import { scanForDetachedStyles } from './src/modules/scanner';
 import { getConnectedLibraries } from './src/modules/library';
 import { findMatches } from './src/modules/matcher';
 import { applyFixes } from './src/modules/resolver';
+import { logger } from './src/modules/logger';
 
 // This shows the HTML page in "ui.html".
 figma.showUI(__html__, { width: 450, height: 550 });
@@ -39,10 +40,10 @@ figma.ui.onmessage = async (message: UIMessage) => {
         figma.closePlugin();
         break;
       default:
-        console.error('Unknown message type:', message.type);
+        logger.error('Unknown message type:', message.type);
     }
   } catch (error) {
-    console.error('Error handling message:', error);
+    logger.error('Error handling message:', error);
     figma.ui.postMessage({
       type: 'scan-complete',
       errorMessage: 'An error occurred: ' + (error instanceof Error ? error.message : String(error))
@@ -104,26 +105,21 @@ async function handleScan(useSelection: boolean) {
     }
     
     // Get connected libraries
-    const librariesResult = await getConnectedLibraries();
+    const librariesMap = await getConnectedLibraries();
     
-    if (librariesResult.errorMessage) {
+    if (Object.keys(librariesMap).length === 0) {
       figma.ui.postMessage({
         type: 'scan-complete',
-        errorMessage: librariesResult.errorMessage
+        errorMessage: 'No connected libraries found. Please connect at least one library with variables or styles.'
       } as PluginMessage);
       return;
     }
     
-    if (librariesResult.libraries.length === 0) {
-      figma.ui.postMessage({
-        type: 'scan-complete',
-        errorMessage: 'No connected libraries found. Please connect at least one library with variables.'
-      } as PluginMessage);
-      return;
-    }
+    // Convert libraries map to array for the matcher
+    const libraries = Object.values(librariesMap);
     
     // Find matches for detached styles
-    const matchResults = findMatches(allDetachedStyles, librariesResult.libraries);
+    const matchResults = findMatches(allDetachedStyles, libraries);
     
     // Send results to UI
     figma.ui.postMessage({
@@ -132,7 +128,7 @@ async function handleScan(useSelection: boolean) {
       matchResults
     } as PluginMessage);
   } catch (error) {
-    console.error('Error scanning for detached styles:', error);
+    logger.error('Error scanning for detached styles:', error);
     figma.ui.postMessage({
       type: 'scan-complete',
       errorMessage: 'Error scanning for detached styles: ' + (error instanceof Error ? error.message : String(error))
@@ -144,7 +140,7 @@ async function handleScan(useSelection: boolean) {
  * Handles applying fixes
  * @param fixes Array of fixes to apply
  */
-async function handleApplyFixes(fixes: Array<{ detachedStyleId: string; variableId: string }>) {
+async function handleApplyFixes(fixes: Array<{ detachedStyleId: string; variableId?: string; styleId?: string; isStyle?: boolean }>) {
   try {
     if (fixes.length === 0) {
       figma.ui.postMessage({
@@ -171,11 +167,12 @@ async function handleApplyFixes(fixes: Array<{ detachedStyleId: string; variable
       } as PluginMessage);
     } else {
       figma.ui.postMessage({
-        type: 'apply-complete'
+        type: 'apply-complete',
+        message: result.message
       } as PluginMessage);
     }
   } catch (error) {
-    console.error('Error applying fixes:', error);
+    logger.error('Error applying fixes:', error);
     figma.ui.postMessage({
       type: 'apply-complete',
       errorMessage: 'Error applying fixes: ' + (error instanceof Error ? error.message : String(error))
