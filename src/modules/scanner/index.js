@@ -7,9 +7,15 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-import { v4 as uuidv4 } from 'uuid';
+// import { v4 as uuidv4 } from 'uuid';
 import { StyleCategory, NODE_COUNT_LIMIT } from '../../types';
 import { extractColorFromPaint } from '../../utils/colorUtils';
+
+// Simple ID generator to replace UUID
+function generateSimpleId() {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2);
+}
+
 /**
  * Counts the number of nodes in the current scope
  * @param scope The scope to count nodes in (selection or current page)
@@ -153,7 +159,7 @@ const extractDetachedFillStyles = (node, detachedStyles) => {
             const colorHex = extractColorFromPaint(fill);
             if (colorHex) {
                 detachedStyles.push({
-                    id: uuidv4(),
+                    id: generateSimpleId(),
                     nodeId: node.id,
                     nodeName: node.name,
                     category: StyleCategory.COLOR,
@@ -199,7 +205,7 @@ const extractDetachedTextStyles = (node, detachedStyles) => {
             fontValue += `/${lineHeightValue}`;
         }
         detachedStyles.push({
-            id: uuidv4(),
+            id: generateSimpleId(),
             nodeId: node.id,
             nodeName: node.name,
             category: StyleCategory.TYPOGRAPHY,
@@ -235,7 +241,7 @@ const extractDetachedCornerRadiusStyles = (node, detachedStyles) => {
         return; // Skip if it's figma.mixed
     }
     detachedStyles.push({
-        id: uuidv4(),
+        id: generateSimpleId(),
         nodeId: node.id,
         nodeName: node.name,
         category: StyleCategory.CORNER_RADIUS,
@@ -257,7 +263,7 @@ const extractDetachedSpacingStyles = (node, detachedStyles, propertyName) => {
     }
     const spacingValue = `${node[propertyName]}px`;
     detachedStyles.push({
-        id: uuidv4(),
+        id: generateSimpleId(),
         nodeId: node.id,
         nodeName: node.name,
         category: StyleCategory.SPACING,

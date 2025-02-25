@@ -1,6 +1,11 @@
-import { v4 as uuidv4 } from 'uuid';
+// import { v4 as uuidv4 } from 'uuid';
 import { DetachedStyle, StyleCategory, NODE_COUNT_LIMIT, ScanOptions, ScanResult, DetachedStylesMap } from '../../types';
 import { extractColorFromPaint } from '../../utils/colorUtils';
+
+// Simple ID generator to replace UUID
+function generateSimpleId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2);
+}
 
 // Default scan options
 export const defaultScanOptions: ScanOptions = {
@@ -198,7 +203,7 @@ function hasVariableBinding(node: SceneNode, property: string): boolean {
  */
 const extractDetachedFillStyles = (
   node: SceneNode & { fills: readonly Paint[] },
-  detachedStyles: DetachedStyle[]
+  detachedStyles: DetachedStylesMap
 ): void => {
   // Skip if the node has a fill style applied
   if ('fillStyleId' in node && node.fillStyleId !== '') {
@@ -213,8 +218,8 @@ const extractDetachedFillStyles = (
       const colorHex = extractColorFromPaint(fill);
       
       if (colorHex) {
-        detachedStyles.push({
-          id: uuidv4(),
+        detachedStyles.fills.push({
+          id: generateSimpleId(),
           nodeId: node.id,
           nodeName: node.name,
           category: StyleCategory.COLOR,
@@ -234,7 +239,7 @@ const extractDetachedFillStyles = (
  */
 const extractDetachedTextStyles = (
   node: TextNode,
-  detachedStyles: DetachedStyle[]
+  detachedStyles: DetachedStylesMap
 ): void => {
   // Skip if the node has a text style applied
   if (node.textStyleId !== '' && node.textStyleId !== figma.mixed) {
@@ -249,33 +254,17 @@ const extractDetachedTextStyles = (
   if (fontName !== figma.mixed && fontSize !== figma.mixed) {
     let fontValue = `${fontName.family} ${fontSize}`;
     
-    if (lineHeight !== figma.mixed) {
-      // Format line height based on its type
-      let lineHeightValue: string;
-      
-      if (typeof lineHeight === 'number') {
-        lineHeightValue = `${lineHeight}`;
-      } else if (lineHeight.unit === 'PIXELS') {
-        lineHeightValue = `${lineHeight.value}`;
-      } else if (lineHeight.unit === 'PERCENT') {
-        lineHeightValue = `${lineHeight.value}%`;
-      } else {
-        lineHeightValue = `${lineHeight.value}`;
-      }
-      
-      fontValue += `/${lineHeightValue}`;
-    }
-    
-    detachedStyles.push({
-      id: uuidv4(),
+    detachedStyles.typography.push({
+      id: generateSimpleId(),
       nodeId: node.id,
       nodeName: node.name,
       category: StyleCategory.TYPOGRAPHY,
       value: fontValue,
       originalValue: {
-        fontName,
-        fontSize,
-        lineHeight
+        fontFamily: fontName.family,
+        fontSize: fontSize,
+        fontWeight: fontName.style,
+        lineHeight: lineHeight
       },
       propertyName: 'typography'
     });
@@ -283,66 +272,111 @@ const extractDetachedTextStyles = (
 };
 
 /**
- * Extracts detached corner radius styles
- * @param node The node with corner radius
+ * Extracts detached stroke styles from a node
+ * @param node The node to extract from
  * @param detachedStyles Array to collect detached styles
  */
-const extractDetachedCornerRadiusStyles = (
-  node: SceneNode & { cornerRadius: number | CornerRadius | typeof figma.mixed },
-  detachedStyles: DetachedStyle[]
+const extractDetachedStrokeStyles = (
+  node: SceneNode & { strokes: readonly Paint[] },
+  detachedStyles: DetachedStylesMap
 ): void => {
-  // Skip if the node has a corner radius style applied
-  if ('cornerRadiusStyleId' in node && node.cornerRadiusStyleId !== '') {
+  // Skip if the node has a stroke style applied
+  if ('strokeStyleId' in node && node.strokeStyleId !== '') {
     return;
   }
   
-  let radiusValue: string;
-  
-  if (typeof node.cornerRadius === 'number') {
-    radiusValue = `${node.cornerRadius}px`;
-  } else if (node.cornerRadius !== figma.mixed) {
-    // For mixed corner radius, we'll use the top-left value for now
-    radiusValue = `${node.cornerRadius.topLeft}px`;
-  } else {
-    return; // Skip if it's figma.mixed
+  // Process each stroke
+  for (let i = 0; i < node.strokes.length; i++) {
+    const stroke = node.strokes[i];
+    
+    if (stroke.type === 'SOLID') {
+      const colorHex = extractColorFromPaint(stroke);
+      
+      if (colorHex) {
+        detachedStyles.strokes.push({
+          id: generateSimpleId(),
+          nodeId: node.id,
+          nodeName: node.name,
+          category: StyleCategory.COLOR,
+          value: colorHex,
+          originalValue: stroke.color,
+          propertyName: `stroke[${i}]`
+        });
+      }
+    }
   }
-  
-  detachedStyles.push({
-    id: uuidv4(),
-    nodeId: node.id,
-    nodeName: node.name,
-    category: StyleCategory.CORNER_RADIUS,
-    value: radiusValue,
-    originalValue: node.cornerRadius,
-    propertyName: 'cornerRadius'
-  });
 };
 
 /**
- * Extracts detached spacing styles
- * @param node The node with spacing
+ * Extracts detached effect styles from a node
+ * @param node The node to extract from
  * @param detachedStyles Array to collect detached styles
- * @param propertyName The name of the spacing property
  */
-const extractDetachedSpacingStyles = (
-  node: SceneNode & { [key: string]: any },
-  detachedStyles: DetachedStyle[],
-  propertyName: string
+const extractDetachedEffectStyles = (
+  node: SceneNode & { effects: readonly Effect[] },
+  detachedStyles: DetachedStylesMap
 ): void => {
-  // Skip if the node has a spacing style applied
-  if (`${propertyName}StyleId` in node && node[`${propertyName}StyleId`] !== '') {
+  // Skip if the node has an effect style applied
+  if ('effectStyleId' in node && node.effectStyleId !== '') {
     return;
   }
   
-  const spacingValue = `${node[propertyName]}px`;
-  
-  detachedStyles.push({
-    id: uuidv4(),
-    nodeId: node.id,
-    nodeName: node.name,
-    category: StyleCategory.SPACING,
-    value: spacingValue,
-    originalValue: node[propertyName],
-    propertyName
-  });
+  // Process each effect
+  for (let i = 0; i < node.effects.length; i++) {
+    const effect = node.effects[i];
+    
+    detachedStyles.effects.push({
+      id: generateSimpleId(),
+      nodeId: node.id,
+      nodeName: node.name,
+      category: StyleCategory.OTHER, // Using OTHER for effects
+      value: `Effect: ${effect.type}`,
+      originalValue: effect,
+      propertyName: `effect[${i}]`
+    });
+  }
+};
+
+/**
+ * Extracts detached corner radius styles from a node
+ * @param node The node to extract from
+ * @param detachedStyles Array to collect detached styles
+ */
+const extractDetachedCornerRadiusStyles = (
+  node: SceneNode & { cornerRadius: number | typeof figma.mixed },
+  detachedStyles: DetachedStylesMap
+): void => {
+  if (node.cornerRadius !== figma.mixed && node.cornerRadius !== 0) {
+    detachedStyles.cornerRadius.push({
+      id: generateSimpleId(),
+      nodeId: node.id,
+      nodeName: node.name,
+      category: StyleCategory.CORNER_RADIUS,
+      value: `${node.cornerRadius}px`,
+      originalValue: node.cornerRadius,
+      propertyName: 'cornerRadius'
+    });
+  }
+};
+
+/**
+ * Extracts detached spacing styles from a node
+ * @param node The node to extract from
+ * @param detachedStyles Array to collect detached styles
+ */
+const extractDetachedSpacingStyles = (
+  node: FrameNode & { itemSpacing: number },
+  detachedStyles: DetachedStylesMap
+): void => {
+  if (node.itemSpacing !== 0) {
+    detachedStyles.spacing.push({
+      id: generateSimpleId(),
+      nodeId: node.id,
+      nodeName: node.name,
+      category: StyleCategory.SPACING,
+      value: `${node.itemSpacing}px`,
+      originalValue: node.itemSpacing,
+      propertyName: 'itemSpacing'
+    });
+  }
 }; 

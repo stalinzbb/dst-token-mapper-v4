@@ -10,38 +10,72 @@ export const getConnectedLibraries = async (): Promise<{
   errorMessage?: string;
 }> => {
   try {
-    // Get all available libraries
-    const availableLibraries = await figma.clientStorage.getAsync('libraries') as any[];
+    console.log('Getting connected libraries...');
     
-    if (!availableLibraries || availableLibraries.length === 0) {
+    // Get all variable collections
+    const collections = await figma.variables.getLocalVariableCollectionsAsync();
+    console.log('Found variable collections:', collections.length);
+    
+    if (collections.length === 0) {
       return {
         libraries: [],
-        errorMessage: 'No connected libraries found. Please connect a library with variables.'
+        errorMessage: 'No variable collections found. Please create or connect a library with variables.'
       };
     }
     
-    // Get variables from each library
+    // Get all local variables
+    const allVariables = await figma.variables.getLocalVariablesAsync();
+    console.log('Found local variables:', allVariables.length);
+    
+    // Create a library for each collection
     const libraries: LibraryInfo[] = [];
     
-    for (const lib of availableLibraries) {
-      const variables = await extractVariablesFromLibrary(lib.id);
+    for (const collection of collections) {
+      // Filter variables for this collection
+      const variables = allVariables.filter(v => v.variableCollectionId === collection.id);
       
-      if (Object.keys(variables).length > 0) {
+      if (variables.length > 0) {
+        const processedVariables: {
+          [key: string]: {
+            id: string;
+            name: string;
+            value: any;
+            category: StyleCategory;
+          }
+        } = {};
+        
+        for (const variable of variables) {
+          const variableValue = await getVariableValue(variable);
+          
+          if (variableValue) {
+            const category = determineVariableCategory(variable, variableValue);
+            
+            processedVariables[variable.id] = {
+              id: variable.id,
+              name: variable.name,
+              value: variableValue,
+              category
+            };
+          }
+        }
+        
         libraries.push({
-          id: lib.id,
-          name: lib.name,
-          variables
+          id: collection.id,
+          name: collection.name,
+          variables: processedVariables
         });
       }
     }
     
     if (libraries.length === 0) {
+      console.log('No libraries with variables found');
       return {
         libraries: [],
         errorMessage: 'No variables found in connected libraries.'
       };
     }
     
+    console.log('Processed libraries:', libraries.length);
     return { libraries };
   } catch (error) {
     console.error('Error getting connected libraries:', error);
@@ -71,7 +105,7 @@ const extractVariablesFromLibrary = async (libraryId: string): Promise<{
     
     // Filter variables by library ID
     const filteredVariables = libraryVariables.filter(variable => 
-      variable.libraryId === libraryId
+      variable.variableCollectionId === libraryId
     );
     
     // Process variables
@@ -113,9 +147,16 @@ const extractVariablesFromLibrary = async (libraryId: string): Promise<{
  */
 const getVariableValue = async (variable: Variable): Promise<any> => {
   try {
-    // @ts-ignore - modes is available but not in typings
-    const defaultMode = variable.modes[0];
+    // Get the default mode
+    const collection = await figma.variables.getVariableCollectionByIdAsync(variable.variableCollectionId);
+    if (!collection || collection.modes.length === 0) {
+      return '';
+    }
+    
+    const defaultMode = collection.modes[0];
     const modeId = defaultMode.modeId;
+    
+    // Get the value for the default mode
     const value = variable.valuesByMode[modeId];
     
     // Handle different variable types
@@ -123,7 +164,7 @@ const getVariableValue = async (variable: Variable): Promise<any> => {
       return value;
     } else if (typeof value === 'number') {
       return value.toString();
-    } else if (value && 'r' in value) {
+    } else if (value && typeof value === 'object' && 'r' in value) {
       // Color value
       const color = value as RGBA;
       return figmaRGBToHex(color);
@@ -254,30 +295,6 @@ export const detectConflicts = (libraries: LibraryInfo[]): {
 
 export function getVariablesFromLibrary(libraryId: string): Variable[] {
   return figma.variables.getLocalVariables().filter(variable => 
-    // @ts-ignore - libraryId is available but not in typings
-    variable.libraryId === libraryId
+    variable.variableCollectionId === libraryId
   );
-}
-
-export function findConflictingLibraries(valueMap: ValueLibraryMap): ConflictMap {
-  const conflicts: ConflictMap = {};
-  
-  Object.keys(valueMap).forEach(value => {
-    if (valueMap[value].libraryIds.length > 1) {
-      const libraries = figma.variables.getLocalVariables()
-        .filter(variable => {
-          // @ts-ignore - libraryId is available but not in typings
-          return Array.from(valueMap[value].libraryIds).includes(variable.libraryId);
-        })
-        .map(variable => {
-          // @ts-ignore - libraryId is available but not in typings
-          return getLibraryById(variable.libraryId);
-        })
-        .filter((library): library is Library => library !== null);
-      
-      conflicts[value] = libraries;
-    }
-  });
-  
-  return conflicts;
 } 

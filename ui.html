@@ -41,6 +41,11 @@
       padding: var(--spacing-md);
     }
 
+    #root {
+      width: 100%;
+      height: 100%;
+    }
+
     .app {
       display: flex;
       flex-direction: column;
@@ -184,140 +189,149 @@
   </style>
 </head>
 <body>
-  <div class="app">
-    <h1 class="app-title">Detached Style Token Mapper</h1>
-    
-    <div id="status-message" class="status-message info hidden">
-      <div class="status-icon">ℹ️</div>
-      <div id="status-text" class="status-text"></div>
-    </div>
-    
-    <div class="scan-controls">
-      <div class="scan-options">
-        <label class="scan-option">
-          <input
-            type="radio"
-            name="scanScope"
-            value="page"
-            checked
-          />
-          <span>Current Page</span>
-        </label>
-        <label class="scan-option">
-          <input
-            type="radio"
-            name="scanScope"
-            value="selection"
-          />
-          <span>Selection Only</span>
-        </label>
-      </div>
-      <button id="scan-button">Scan for Detached Styles</button>
-    </div>
-    
-    <div id="results-container" class="hidden">
-      <div id="results-list" class="results-list"></div>
-      
-      <div class="action-buttons">
-        <button id="apply-button" disabled>Apply Fixes</button>
-        <button id="cancel-button" class="secondary">Cancel</button>
-      </div>
-    </div>
-  </div>
+  <div id="root"></div>
 
   <script>
-    // State
-    let detachedStyles = [];
-    let matchResults = [];
-    let selectedFixes = {};
-    let isScanning = false;
-
-    // DOM Elements
-    const statusMessage = document.getElementById('status-message');
-    const statusText = document.getElementById('status-text');
-    const scanButton = document.getElementById('scan-button');
-    const applyButton = document.getElementById('apply-button');
-    const cancelButton = document.getElementById('cancel-button');
-    const resultsContainer = document.getElementById('results-container');
-    const resultsList = document.getElementById('results-list');
-
-    // Show status message
-    function showStatus(message, type = 'info') {
-      statusMessage.className = `status-message ${type}`;
-      statusText.textContent = message;
-      statusMessage.classList.remove('hidden');
-    }
-
-    // Handle scan button click
-    scanButton.addEventListener('click', () => {
-      const useSelection = document.querySelector('input[name="scanScope"]:checked').value === 'selection';
+    // This is a simple implementation to handle the plugin messages
+    // without requiring a full React build process
+    
+    // When we receive a message from the plugin
+    window.onmessage = (event) => {
+      const message = event.data.pluginMessage;
       
-      isScanning = true;
-      scanButton.textContent = 'Scanning...';
-      scanButton.disabled = true;
-      showStatus('Scanning for detached styles...', 'info');
+      if (!message) return;
       
-      // Clear previous results
-      resultsList.innerHTML = '';
-      resultsContainer.classList.add('hidden');
-      selectedFixes = {};
+      // Log the message for debugging
+      console.log('Received message from plugin:', message);
       
-      // Send message to plugin
-      parent.postMessage({
-        pluginMessage: {
-          type: 'scan',
-          useSelection
+      if (message.type === 'scan-complete') {
+        // Show the status message
+        const statusMessage = document.createElement('div');
+        statusMessage.className = `status-message ${message.errorMessage ? 'error' : 'success'}`;
+        
+        const statusIcon = document.createElement('div');
+        statusIcon.className = 'status-icon';
+        statusIcon.textContent = message.errorMessage ? '❌' : '✅';
+        
+        const statusText = document.createElement('div');
+        statusText.className = 'status-text';
+        statusText.textContent = message.errorMessage || 'Scan complete';
+        
+        statusMessage.appendChild(statusIcon);
+        statusMessage.appendChild(statusText);
+        
+        // Clear previous status messages
+        const existingStatus = document.querySelector('.status-message');
+        if (existingStatus) {
+          existingStatus.remove();
         }
-      }, '*');
-    });
-
-    // Handle apply button click
-    applyButton.addEventListener('click', () => {
-      const fixesToApply = Object.entries(selectedFixes).map(([detachedStyleId, variableId]) => ({
-        detachedStyleId,
-        variableId
-      }));
-      
-      applyButton.textContent = 'Applying...';
-      applyButton.disabled = true;
-      showStatus('Applying fixes...', 'info');
-      
-      // Send message to plugin
-      parent.postMessage({
-        pluginMessage: {
-          type: 'apply-fixes',
-          fixes: fixesToApply
+        
+        // Add the new status message
+        document.getElementById('root').appendChild(statusMessage);
+        
+        // If we have results, display them
+        if (message.detachedStyles && message.detachedStyles.length > 0 && message.matchResults) {
+          try {
+            displayResults(message.detachedStyles, message.matchResults);
+          } catch (error) {
+            console.error('Error displaying results:', error);
+            
+            // Show error message
+            const errorMessage = document.createElement('div');
+            errorMessage.className = 'status-message error';
+            
+            const errorIcon = document.createElement('div');
+            errorIcon.className = 'status-icon';
+            errorIcon.textContent = '❌';
+            
+            const errorText = document.createElement('div');
+            errorText.className = 'status-text';
+            errorText.textContent = `Error displaying results: ${error.message}`;
+            
+            errorMessage.appendChild(errorIcon);
+            errorMessage.appendChild(errorText);
+            
+            // Add the error message
+            document.getElementById('root').appendChild(errorMessage);
+          }
+        } else if (!message.errorMessage) {
+          // Show no results message
+          const noResultsMessage = document.createElement('div');
+          noResultsMessage.className = 'status-message info';
+          
+          const infoIcon = document.createElement('div');
+          infoIcon.className = 'status-icon';
+          infoIcon.textContent = 'ℹ️';
+          
+          const infoText = document.createElement('div');
+          infoText.className = 'status-text';
+          infoText.textContent = 'No detached styles found.';
+          
+          noResultsMessage.appendChild(infoIcon);
+          noResultsMessage.appendChild(infoText);
+          
+          // Add the info message
+          document.getElementById('root').appendChild(noResultsMessage);
         }
-      }, '*');
-    });
-
-    // Handle cancel button click
-    cancelButton.addEventListener('click', () => {
-      parent.postMessage({
-        pluginMessage: {
-          type: 'cancel'
+      } else if (message.type === 'apply-complete') {
+        // Show the status message
+        const statusMessage = document.createElement('div');
+        statusMessage.className = `status-message ${message.errorMessage ? 'error' : 'success'}`;
+        
+        const statusIcon = document.createElement('div');
+        statusIcon.className = 'status-icon';
+        statusIcon.textContent = message.errorMessage ? '❌' : '✅';
+        
+        const statusText = document.createElement('div');
+        statusText.className = 'status-text';
+        statusText.textContent = message.errorMessage || 'Fixes applied successfully!';
+        
+        statusMessage.appendChild(statusIcon);
+        statusMessage.appendChild(statusText);
+        
+        // Clear previous status messages
+        const existingStatus = document.querySelector('.status-message');
+        if (existingStatus) {
+          existingStatus.remove();
         }
-      }, '*');
-    });
-
-    // Handle variable selection
-    function handleVariableSelect(detachedStyleId, variableId) {
-      selectedFixes[detachedStyleId] = variableId;
-      
-      // Update apply button
-      const fixesCount = Object.keys(selectedFixes).length;
-      applyButton.textContent = `Apply ${fixesCount} Fixes`;
-      applyButton.disabled = fixesCount === 0;
-    }
-
-    // Render results
-    function renderResults() {
-      if (detachedStyles.length === 0) {
-        resultsList.innerHTML = '<div class="no-results">No detached styles found.</div>';
-        return;
+        
+        // Add the new status message
+        document.getElementById('root').appendChild(statusMessage);
+        
+        // Clear results
+        const existingResults = document.querySelector('.results-container');
+        if (existingResults) {
+          existingResults.remove();
+        }
+        
+        // Reset selected fixes
+        selectedFixes = {};
       }
+    };
+    
+    // Function to display results
+    function displayResults(detachedStyles, matchResults) {
+      console.log('Displaying results:', { detachedStyles, matchResults });
       
-      // Group by category
+      // Create results container
+      const resultsContainer = document.createElement('div');
+      resultsContainer.className = 'results-container';
+      
+      // Create results summary
+      const resultsSummary = document.createElement('div');
+      resultsSummary.className = 'results-summary';
+      resultsSummary.innerHTML = `
+        <div class="results-count">
+          <span class="count-label">Total Detached Styles:</span>
+          <span class="count-value">${detachedStyles.length}</span>
+        </div>
+      `;
+      
+      // Create results list
+      const resultsList = document.createElement('div');
+      resultsList.className = 'results-list';
+      
+      // Group styles by category
       const stylesByCategory = {};
       detachedStyles.forEach(style => {
         if (!stylesByCategory[style.category]) {
@@ -326,20 +340,23 @@
         stylesByCategory[style.category].push(style);
       });
       
-      // Clear list
-      resultsList.innerHTML = '';
-      
-      // Render each category
-      Object.entries(stylesByCategory).forEach(([category, styles]) => {
-        const categoryTitle = document.createElement('h3');
-        categoryTitle.textContent = category;
-        categoryTitle.style.marginBottom = 'var(--spacing-sm)';
-        resultsList.appendChild(categoryTitle);
+      // Add styles to results list
+      for (const category in stylesByCategory) {
+        const categoryGroup = document.createElement('div');
+        categoryGroup.className = 'category-group';
         
-        styles.forEach(style => {
+        const categoryTitle = document.createElement('h3');
+        categoryTitle.className = 'category-title';
+        categoryTitle.textContent = getCategoryName(category);
+        
+        const categoryItems = document.createElement('div');
+        categoryItems.className = 'category-items';
+        
+        stylesByCategory[category].forEach(style => {
+          // Find match for this style
           const match = matchResults.find(m => m.detachedStyleId === style.id);
-          const hasMatches = match && match.matches && match.matches.length > 0;
           
+          // Create result item
           const resultItem = document.createElement('div');
           resultItem.className = 'result-item';
           
@@ -347,12 +364,20 @@
           const styleInfo = document.createElement('div');
           styleInfo.className = 'style-info';
           
-          // Color preview for color styles
-          if (style.category === 'COLOR') {
+          // Style preview
+          const stylePreview = document.createElement('div');
+          stylePreview.className = 'style-preview';
+          
+          if (category === 'COLOR') {
             const colorPreview = document.createElement('div');
             colorPreview.className = 'color-preview';
             colorPreview.style.backgroundColor = style.value;
-            styleInfo.appendChild(colorPreview);
+            stylePreview.appendChild(colorPreview);
+          } else {
+            const propertyIcon = document.createElement('div');
+            propertyIcon.className = 'property-icon';
+            propertyIcon.textContent = getCategoryIcon(category);
+            stylePreview.appendChild(propertyIcon);
           }
           
           // Style details
@@ -360,120 +385,347 @@
           styleDetails.className = 'style-details';
           
           const styleName = document.createElement('div');
-          styleName.textContent = style.nodeName;
-          styleName.style.fontWeight = '500';
+          styleName.className = 'style-name';
+          styleName.textContent = style.nodeName || 'Unnamed Node';
           
           const propertyName = document.createElement('div');
-          propertyName.textContent = style.propertyName;
-          propertyName.style.fontSize = '11px';
-          propertyName.style.color = '#666';
+          propertyName.className = 'property-name';
+          propertyName.textContent = style.propertyName || 'Property';
           
           const styleValue = document.createElement('div');
-          styleValue.textContent = style.value;
-          styleValue.style.fontSize = '11px';
+          styleValue.className = 'style-value';
+          styleValue.textContent = style.value || '';
           
           styleDetails.appendChild(styleName);
           styleDetails.appendChild(propertyName);
           styleDetails.appendChild(styleValue);
+          
+          styleInfo.appendChild(stylePreview);
           styleInfo.appendChild(styleDetails);
           
           // Variable selection
           const variableSelection = document.createElement('div');
           variableSelection.className = 'variable-selection';
           
-          if (hasMatches) {
+          if (match && match.matches && match.matches.length > 0) {
+            const variableDropdown = document.createElement('div');
+            variableDropdown.className = 'variable-dropdown';
+            
             const select = document.createElement('select');
-            select.innerHTML = '<option value="">Select variable...</option>';
+            select.dataset.styleId = style.id;
+            select.className = match.hasConflict ? 'has-conflict' : '';
+            select.addEventListener('change', handleVariableSelect);
+            
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = 'Select variable...';
+            select.appendChild(defaultOption);
             
             match.matches.forEach(variable => {
               const option = document.createElement('option');
-              option.value = variable.id;
-              option.textContent = `${variable.name} (${variable.libraryName})`;
+              option.value = variable.variableId;
+              option.textContent = `${variable.variableName} (${variable.libraryName})`;
               select.appendChild(option);
             });
             
-            // Set selected value if exists
-            if (selectedFixes[style.id]) {
-              select.value = selectedFixes[style.id];
-            }
+            variableDropdown.appendChild(select);
+            variableSelection.appendChild(variableDropdown);
             
-            select.addEventListener('change', (e) => {
-              handleVariableSelect(style.id, e.target.value);
-            });
-            
-            variableSelection.appendChild(select);
-            
-            // Show conflict warning if needed
             if (match.hasConflict) {
               const conflictWarning = document.createElement('div');
+              conflictWarning.className = 'conflict-warning';
               conflictWarning.textContent = '⚠️ Multiple libraries have matching variables';
-              conflictWarning.style.fontSize = '11px';
-              conflictWarning.style.color = 'var(--color-warning)';
-              conflictWarning.style.marginTop = 'var(--spacing-xs)';
               variableSelection.appendChild(conflictWarning);
             }
           } else {
             const noMatches = document.createElement('div');
+            noMatches.className = 'no-matches';
             noMatches.textContent = 'No matching variables found';
-            noMatches.style.fontSize = '11px';
-            noMatches.style.color = '#999';
-            noMatches.style.fontStyle = 'italic';
             variableSelection.appendChild(noMatches);
           }
           
           resultItem.appendChild(styleInfo);
           resultItem.appendChild(variableSelection);
-          resultsList.appendChild(resultItem);
+          
+          categoryItems.appendChild(resultItem);
         });
-      });
-      
-      // Show results container
-      resultsContainer.classList.remove('hidden');
-    }
-
-    // Listen for messages from the plugin
-    window.onmessage = (event) => {
-      const message = event.data.pluginMessage;
-      
-      if (!message) return;
-      
-      switch (message.type) {
-        case 'scan-complete':
-          isScanning = false;
-          scanButton.textContent = 'Scan for Detached Styles';
-          scanButton.disabled = false;
-          
-          if (message.errorMessage) {
-            showStatus(message.errorMessage, 'error');
-            return;
-          }
-          
-          detachedStyles = message.detachedStyles || [];
-          matchResults = message.matchResults || [];
-          
-          showStatus('Scan complete', 'success');
-          renderResults();
-          break;
-          
-        case 'apply-complete':
-          applyButton.textContent = 'Apply Fixes';
-          applyButton.disabled = false;
-          
-          if (message.errorMessage) {
-            showStatus(message.errorMessage, 'error');
-            return;
-          }
-          
-          showStatus('Fixes applied successfully', 'success');
-          
-          // Clear results
-          detachedStyles = [];
-          matchResults = [];
-          selectedFixes = {};
-          resultsContainer.classList.add('hidden');
-          break;
+        
+        categoryGroup.appendChild(categoryTitle);
+        categoryGroup.appendChild(categoryItems);
+        
+        resultsList.appendChild(categoryGroup);
       }
-    };
+      
+      // Action buttons
+      const actionButtons = document.createElement('div');
+      actionButtons.className = 'action-buttons';
+      
+      const applyButton = document.createElement('button');
+      applyButton.id = 'apply-button';
+      applyButton.textContent = 'Apply Fixes';
+      applyButton.disabled = true;
+      applyButton.addEventListener('click', handleApplyFixes);
+      
+      const cancelButton = document.createElement('button');
+      cancelButton.id = 'cancel-button';
+      cancelButton.className = 'secondary';
+      cancelButton.textContent = 'Cancel';
+      cancelButton.addEventListener('click', handleCancel);
+      
+      actionButtons.appendChild(applyButton);
+      actionButtons.appendChild(cancelButton);
+      
+      // Add everything to the results container
+      resultsContainer.appendChild(resultsSummary);
+      resultsContainer.appendChild(resultsList);
+      resultsContainer.appendChild(actionButtons);
+      
+      // Clear previous results
+      const existingResults = document.querySelector('.results-container');
+      if (existingResults) {
+        existingResults.remove();
+      }
+      
+      // Add the new results
+      document.getElementById('root').appendChild(resultsContainer);
+    }
+    
+    // Get icon for category
+    function getCategoryIcon(category) {
+      switch (category) {
+        case 'COLOR':
+          return '🎨';
+        case 'TYPOGRAPHY':
+          return '🔤';
+        case 'SPACING':
+          return '↔️';
+        case 'CORNER_RADIUS':
+          return '⚙️';
+        default:
+          return '📐';
+      }
+    }
+    
+    // Get readable name for category
+    function getCategoryName(category) {
+      switch (category) {
+        case 'COLOR':
+          return 'Colors';
+        case 'TYPOGRAPHY':
+          return 'Typography';
+        case 'SPACING':
+          return 'Spacing';
+        case 'CORNER_RADIUS':
+          return 'Corner Radius';
+        default:
+          return category;
+      }
+    }
+    
+    // Handle variable selection
+    let selectedFixes = {};
+    
+    function handleVariableSelect(event) {
+      const styleId = event.target.dataset.styleId;
+      const variableId = event.target.value;
+      
+      if (variableId) {
+        selectedFixes[styleId] = variableId;
+      } else {
+        delete selectedFixes[styleId];
+      }
+      
+      // Update apply button state
+      const applyButton = document.getElementById('apply-button');
+      if (applyButton) {
+        applyButton.disabled = Object.keys(selectedFixes).length === 0;
+        applyButton.textContent = `Apply ${Object.keys(selectedFixes).length} Fixes`;
+      }
+    }
+    
+    // Handle apply fixes
+    function handleApplyFixes() {
+      const fixesToApply = Object.entries(selectedFixes).map(([detachedStyleId, variableId]) => ({
+        detachedStyleId,
+        variableId
+      }));
+      
+      parent.postMessage({
+        pluginMessage: {
+          type: 'apply-fixes',
+          fixes: fixesToApply
+        }
+      }, '*');
+      
+      // Show applying status
+      const statusMessage = document.createElement('div');
+      statusMessage.className = 'status-message info';
+      
+      const statusIcon = document.createElement('div');
+      statusIcon.className = 'status-icon';
+      statusIcon.textContent = 'ℹ️';
+      
+      const statusText = document.createElement('div');
+      statusText.className = 'status-text';
+      statusText.textContent = 'Applying fixes...';
+      
+      statusMessage.appendChild(statusIcon);
+      statusMessage.appendChild(statusText);
+      
+      // Clear previous status messages
+      const existingStatus = document.querySelector('.status-message');
+      if (existingStatus) {
+        existingStatus.remove();
+      }
+      
+      // Add the new status message
+      document.getElementById('root').appendChild(statusMessage);
+      
+      // Disable apply button
+      const applyButton = document.getElementById('apply-button');
+      if (applyButton) {
+        applyButton.disabled = true;
+      }
+    }
+    
+    // Handle cancel
+    function handleCancel() {
+      parent.postMessage({
+        pluginMessage: {
+          type: 'cancel'
+        }
+      }, '*');
+    }
+    
+    // Add scan button and functionality
+    window.addEventListener('load', () => {
+      const root = document.getElementById('root');
+      
+      // Create app container
+      const app = document.createElement('div');
+      app.className = 'app';
+      
+      // Create title
+      const title = document.createElement('h1');
+      title.className = 'app-title';
+      title.textContent = 'Detached Style Token Mapper';
+      
+      // Create scan controls
+      const scanControls = document.createElement('div');
+      scanControls.className = 'scan-controls';
+      
+      const scanOptions = document.createElement('div');
+      scanOptions.className = 'scan-options';
+      
+      // Page option
+      const pageOption = document.createElement('label');
+      pageOption.className = 'scan-option';
+      
+      const pageRadio = document.createElement('input');
+      pageRadio.type = 'radio';
+      pageRadio.name = 'scanScope';
+      pageRadio.value = 'page';
+      pageRadio.checked = true;
+      
+      const pageText = document.createElement('span');
+      pageText.textContent = 'Current Page';
+      
+      pageOption.appendChild(pageRadio);
+      pageOption.appendChild(pageText);
+      
+      // Selection option
+      const selectionOption = document.createElement('label');
+      selectionOption.className = 'scan-option';
+      
+      const selectionRadio = document.createElement('input');
+      selectionRadio.type = 'radio';
+      selectionRadio.name = 'scanScope';
+      selectionRadio.value = 'selection';
+      
+      const selectionText = document.createElement('span');
+      selectionText.textContent = 'Selection Only';
+      
+      selectionOption.appendChild(selectionRadio);
+      selectionOption.appendChild(selectionText);
+      
+      scanOptions.appendChild(pageOption);
+      scanOptions.appendChild(selectionOption);
+      
+      // Scan button
+      const scanButton = document.createElement('button');
+      scanButton.id = 'scan-button';
+      scanButton.textContent = 'Scan for Detached Styles';
+      scanButton.addEventListener('click', handleScan);
+      
+      scanControls.appendChild(scanOptions);
+      scanControls.appendChild(scanButton);
+      
+      // Add everything to the app
+      app.appendChild(title);
+      app.appendChild(scanControls);
+      
+      // Add the app to the root
+      root.appendChild(app);
+    });
+    
+    // Handle scan
+    function handleScan() {
+      // Get selected scan scope
+      const useSelection = document.querySelector('input[name="scanScope"]:checked').value === 'selection';
+      
+      // Show scanning status
+      const statusMessage = document.createElement('div');
+      statusMessage.className = 'status-message info';
+      
+      const statusIcon = document.createElement('div');
+      statusIcon.className = 'status-icon';
+      statusIcon.textContent = 'ℹ️';
+      
+      const statusText = document.createElement('div');
+      statusText.className = 'status-text';
+      statusText.textContent = 'Scanning for detached styles...';
+      
+      statusMessage.appendChild(statusIcon);
+      statusMessage.appendChild(statusText);
+      
+      // Clear previous status messages
+      const existingStatus = document.querySelector('.status-message');
+      if (existingStatus) {
+        existingStatus.remove();
+      }
+      
+      // Add the new status message
+      document.getElementById('root').appendChild(statusMessage);
+      
+      // Clear previous results
+      const existingResults = document.querySelector('.results-container');
+      if (existingResults) {
+        existingResults.remove();
+      }
+      
+      // Send message to plugin
+      parent.postMessage({
+        pluginMessage: {
+          type: 'scan',
+          useSelection
+        }
+      }, '*');
+      
+      // Disable scan button
+      const scanButton = document.getElementById('scan-button');
+      if (scanButton) {
+        scanButton.disabled = true;
+        scanButton.textContent = 'Scanning...';
+      }
+      
+      // Re-enable scan button after a delay
+      setTimeout(() => {
+        if (scanButton) {
+          scanButton.disabled = false;
+          scanButton.textContent = 'Scan for Detached Styles';
+        }
+      }, 1000);
+    }
   </script>
 </body>
 </html>
