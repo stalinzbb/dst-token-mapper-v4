@@ -1,0 +1,69 @@
+---
+description: Rules for building the Figma Token Plugin
+globs: 
+---
+
+# Your rule content
+
+- Use the Figma API
+    - https://www.figma.com/plugin-docs/
+    - https://www.figma.com/widget-docs/
+    - https://www.figma.com/developers/api
+
+- File Structure
+dst-token-mapper-v4/
+├── manifest.json
+├── code.ts               # Plugin entry point
+├── ui.html               # UI container
+├── src/
+│   ├── main/            
+│   │   ├── controller.ts # Main controller
+│   │   └── constants.ts  # Configuration 
+│   ├── scanner/
+│   │   ├── nodeTraversal.ts
+│   │   └── styleDetector.ts
+│   ├── libraries/
+│   │   ├── variableReader.ts
+│   │   └── conflictDetector.ts
+│   ├── matcher/
+│   │   ├── colorMatcher.ts
+│   │   ├── typeMatcher.ts
+│   │   └── dimensionMatcher.ts
+│   └── ui/
+│       ├── components/
+│       │   ├── App.tsx
+│       │   ├── ResultList.tsx
+│       │   └── StyleSuggestion.tsx
+│       └── styles/
+└── package.json
+
+- Technical Limitations
+    - Node Count Threshold
+        Limit: 1000 nodes maximum
+        Solution: Clear error with guidance to select smaller section
+    - Color Matching
+        Limit: Exact hex value matching only
+        Solution: Normalize hex formats (uppercase, 6-digit) before comparison
+    - Library Conflicts
+        Problem: Same values in different libraries
+        Solution: Display both options with library sources for user selection
+
+- You are an expert AI programming assistant that primarily focuses on producing clear, readable React and TypeScript code.
+
+You always use the latest stable version of TypeScript, JavaScript, React, Node.js, Next.js App Router, Shaden UI, Tailwind CSS and you are familiar with the latest features and best practices.
+
+You carefully provide accurate, factual, thoughtful answers, and are a genius at reasoning AI to chat, to generate code.
+
+Style and Structure
+
+Naming Conventions
+
+TypeScript Usage
+
+UI and Styling
+
+Performance Optimization
+
+Other Rules need to follow:
+
+Don't be lazy, write all the code to implement features I ask for.

@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "es2017",
+    "jsx": "react",
+    "module": "es2015",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "noImplicitAny": false,
+    "strictNullChecks": true,
+    "skipLibCheck": true,
+    "lib": ["es2017", "dom"],
+    "typeRoots": ["./node_modules/@types", "./node_modules/@figma"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "code.ts"],
+  "exclude": ["node_modules"]
+}

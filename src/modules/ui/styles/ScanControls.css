@@ -1,0 +1,38 @@
+.scan-controls {
+  margin-bottom: var(--spacing-lg);
+}
+
+.scan-buttons {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.action-buttons {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-md);
+}
+
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  margin-top: var(--spacing-md);
+  color: var(--color-primary);
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(24, 160, 251, 0.3);
+  border-radius: 50%;
+  border-top-color: var(--color-primary);
+  animation: spin 1s linear infinite;
+  margin-right: var(--spacing-sm);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+} 

@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detached Style Token Mapper</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --color-bg: #ffffff;
+      --color-text: #333333;
+      --color-primary: #18a0fb;
+      --color-secondary: #f5f5f5;
+      --color-border: #e5e5e5;
+      --color-error: #f24822;
+      --color-success: #14ae5c;
+      --color-warning: #ffb100;
+      --spacing-xs: 4px;
+      --spacing-sm: 8px;
+      --spacing-md: 16px;
+      --spacing-lg: 24px;
+      --spacing-xl: 32px;
+      --border-radius: 6px;
+      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--color-text);
+      background-color: var(--color-bg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      padding: var(--spacing-md);
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      max-width: 100%;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .app-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: var(--spacing-md);
+    }
+
+    .status-message {
+      display: flex;
+      align-items: center;
+      padding: var(--spacing-sm) var(--spacing-md);
+      border-radius: var(--border-radius);
+      margin-bottom: var(--spacing-md);
+    }
+
+    .status-message.success {
+      background-color: rgba(20, 174, 92, 0.1);
+      color: var(--color-success);
+      border: 1px solid rgba(20, 174, 92, 0.2);
+    }
+
+    .status-message.error {
+      background-color: rgba(242, 72, 34, 0.1);
+      color: var(--color-error);
+      border: 1px solid rgba(242, 72, 34, 0.2);
+    }
+
+    .status-message.info {
+      background-color: rgba(24, 160, 251, 0.1);
+      color: var(--color-primary);
+      border: 1px solid rgba(24, 160, 251, 0.2);
+    }
+
+    .status-icon {
+      margin-right: var(--spacing-sm);
+      font-size: 14px;
+    }
+
+    .scan-controls {
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .scan-options {
+      display: flex;
+      gap: var(--spacing-md);
+      margin-bottom: var(--spacing-md);
+    }
+
+    .scan-option {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      cursor: pointer;
+    }
+
+    button {
+      font-family: var(--font-family);
+      font-size: 12px;
+      font-weight: 500;
+      padding: var(--spacing-sm) var(--spacing-md);
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+      outline: none;
+      background-color: var(--color-primary);
+      color: white;
+      margin-right: var(--spacing-sm);
+    }
+
+    button:hover {
+      background-color: #0d8ce0;
+    }
+
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+
+    button.secondary {
+      background-color: var(--color-secondary);
+      color: var(--color-text);
+      border: 1px solid var(--color-border);
+    }
+
+    .results-list {
+      flex: 1;
+      overflow-y: auto;
+      margin-bottom: var(--spacing-md);
+    }
+
+    .result-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--spacing-md);
+      border: 1px solid var(--color-border);
+      border-radius: var(--border-radius);
+      margin-bottom: var(--spacing-sm);
+    }
+
+    .color-preview {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      border: 1px solid var(--color-border);
+      margin-right: var(--spacing-sm);
+    }
+
+    .style-info {
+      display: flex;
+      align-items: center;
+    }
+
+    .style-details {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .variable-selection select {
+      padding: var(--spacing-xs) var(--spacing-sm);
+      border-radius: var(--border-radius);
+      border: 1px solid var(--color-border);
+    }
+
+    .action-buttons {
+      display: flex;
+      margin-top: var(--spacing-md);
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1 class="app-title">Detached Style Token Mapper</h1>
+    
+    <div id="status-message" class="status-message info hidden">
+      <div class="status-icon">ℹ️</div>
+      <div id="status-text" class="status-text"></div>
+    </div>
+    
+    <div class="scan-controls">
+      <div class="scan-options">
+        <label class="scan-option">
+          <input
+            type="radio"
+            name="scanScope"
+            value="page"
+            checked
+          />
+          <span>Current Page</span>
+        </label>
+        <label class="scan-option">
+          <input
+            type="radio"
+            name="scanScope"
+            value="selection"
+          />
+          <span>Selection Only</span>
+        </label>
+      </div>
+      <button id="scan-button">Scan for Detached Styles</button>
+    </div>
+    
+    <div id="results-container" class="hidden">
+      <div id="results-list" class="results-list"></div>
+      
+      <div class="action-buttons">
+        <button id="apply-button" disabled>Apply Fixes</button>
+        <button id="cancel-button" class="secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let detachedStyles = [];
+    let matchResults = [];
+    let selectedFixes = {};
+    let isScanning = false;
+
+    // DOM Elements
+    const statusMessage = document.getElementById('status-message');
+    const statusText = document.getElementById('status-text');
+    const scanButton = document.getElementById('scan-button');
+    const applyButton = document.getElementById('apply-button');
+    const cancelButton = document.getElementById('cancel-button');
+    const resultsContainer = document.getElementById('results-container');
+    const resultsList = document.getElementById('results-list');
+
+    // Show status message
+    function showStatus(message, type = 'info') {
+      statusMessage.className = `status-message ${type}`;
+      statusText.textContent = message;
+      statusMessage.classList.remove('hidden');
+    }
+
+    // Handle scan button click
+    scanButton.addEventListener('click', () => {
+      const useSelection = document.querySelector('input[name="scanScope"]:checked').value === 'selection';
+      
+      isScanning = true;
+      scanButton.textContent = 'Scanning...';
+      scanButton.disabled = true;
+      showStatus('Scanning for detached styles...', 'info');
+      
+      // Clear previous results
+      resultsList.innerHTML = '';
+      resultsContainer.classList.add('hidden');
+      selectedFixes = {};
+      
+      // Send message to plugin
+      parent.postMessage({
+        pluginMessage: {
+          type: 'scan',
+          useSelection
+        }
+      }, '*');
+    });
+
+    // Handle apply button click
+    applyButton.addEventListener('click', () => {
+      const fixesToApply = Object.entries(selectedFixes).map(([detachedStyleId, variableId]) => ({
+        detachedStyleId,
+        variableId
+      }));
+      
+      applyButton.textContent = 'Applying...';
+      applyButton.disabled = true;
+      showStatus('Applying fixes...', 'info');
+      
+      // Send message to plugin
+      parent.postMessage({
+        pluginMessage: {
+          type: 'apply-fixes',
+          fixes: fixesToApply
+        }
+      }, '*');
+    });
+
+    // Handle cancel button click
+    cancelButton.addEventListener('click', () => {
+      parent.postMessage({
+        pluginMessage: {
+          type: 'cancel'
+        }
+      }, '*');
+    });
+
+    // Handle variable selection
+    function handleVariableSelect(detachedStyleId, variableId) {
+      selectedFixes[detachedStyleId] = variableId;
+      
+      // Update apply button
+      const fixesCount = Object.keys(selectedFixes).length;
+      applyButton.textContent = `Apply ${fixesCount} Fixes`;
+      applyButton.disabled = fixesCount === 0;
+    }
+
+    // Render results
+    function renderResults() {
+      if (detachedStyles.length === 0) {
+        resultsList.innerHTML = '<div class="no-results">No detached styles found.</div>';
+        return;
+      }
+      
+      // Group by category
+      const stylesByCategory = {};
+      detachedStyles.forEach(style => {
+        if (!stylesByCategory[style.category]) {
+          stylesByCategory[style.category] = [];
+        }
+        stylesByCategory[style.category].push(style);
+      });
+      
+      // Clear list
+      resultsList.innerHTML = '';
+      
+      // Render each category
+      Object.entries(stylesByCategory).forEach(([category, styles]) => {
+        const categoryTitle = document.createElement('h3');
+        categoryTitle.textContent = category;
+        categoryTitle.style.marginBottom = 'var(--spacing-sm)';
+        resultsList.appendChild(categoryTitle);
+        
+        styles.forEach(style => {
+          const match = matchResults.find(m => m.detachedStyleId === style.id);
+          const hasMatches = match && match.matches && match.matches.length > 0;
+          
+          const resultItem = document.createElement('div');
+          resultItem.className = 'result-item';
+          
+          // Style info
+          const styleInfo = document.createElement('div');
+          styleInfo.className = 'style-info';
+          
+          // Color preview for color styles
+          if (style.category === 'COLOR') {
+            const colorPreview = document.createElement('div');
+            colorPreview.className = 'color-preview';
+            colorPreview.style.backgroundColor = style.value;
+            styleInfo.appendChild(colorPreview);
+          }
+          
+          // Style details
+          const styleDetails = document.createElement('div');
+          styleDetails.className = 'style-details';
+          
+          const styleName = document.createElement('div');
+          styleName.textContent = style.nodeName;
+          styleName.style.fontWeight = '500';
+          
+          const propertyName = document.createElement('div');
+          propertyName.textContent = style.propertyName;
+          propertyName.style.fontSize = '11px';
+          propertyName.style.color = '#666';
+          
+          const styleValue = document.createElement('div');
+          styleValue.textContent = style.value;
+          styleValue.style.fontSize = '11px';
+          
+          styleDetails.appendChild(styleName);
+          styleDetails.appendChild(propertyName);
+          styleDetails.appendChild(styleValue);
+          styleInfo.appendChild(styleDetails);
+          
+          // Variable selection
+          const variableSelection = document.createElement('div');
+          variableSelection.className = 'variable-selection';
+          
+          if (hasMatches) {
+            const select = document.createElement('select');
+            select.innerHTML = '<option value="">Select variable...</option>';
+            
+            match.matches.forEach(variable => {
+              const option = document.createElement('option');
+              option.value = variable.id;
+              option.textContent = `${variable.name} (${variable.libraryName})`;
+              select.appendChild(option);
+            });
+            
+            // Set selected value if exists
+            if (selectedFixes[style.id]) {
+              select.value = selectedFixes[style.id];
+            }
+            
+            select.addEventListener('change', (e) => {
+              handleVariableSelect(style.id, e.target.value);
+            });
+            
+            variableSelection.appendChild(select);
+            
+            // Show conflict warning if needed
+            if (match.hasConflict) {
+              const conflictWarning = document.createElement('div');
+              conflictWarning.textContent = '⚠️ Multiple libraries have matching variables';
+              conflictWarning.style.fontSize = '11px';
+              conflictWarning.style.color = 'var(--color-warning)';
+              conflictWarning.style.marginTop = 'var(--spacing-xs)';
+              variableSelection.appendChild(conflictWarning);
+            }
+          } else {
+            const noMatches = document.createElement('div');
+            noMatches.textContent = 'No matching variables found';
+            noMatches.style.fontSize = '11px';
+            noMatches.style.color = '#999';
+            noMatches.style.fontStyle = 'italic';
+            variableSelection.appendChild(noMatches);
+          }
+          
+          resultItem.appendChild(styleInfo);
+          resultItem.appendChild(variableSelection);
+          resultsList.appendChild(resultItem);
+        });
+      });
+      
+      // Show results container
+      resultsContainer.classList.remove('hidden');
+    }
+
+    // Listen for messages from the plugin
+    window.onmessage = (event) => {
+      const message = event.data.pluginMessage;
+      
+      if (!message) return;
+      
+      switch (message.type) {
+        case 'scan-complete':
+          isScanning = false;
+          scanButton.textContent = 'Scan for Detached Styles';
+          scanButton.disabled = false;
+          
+          if (message.errorMessage) {
+            showStatus(message.errorMessage, 'error');
+            return;
+          }
+          
+          detachedStyles = message.detachedStyles || [];
+          matchResults = message.matchResults || [];
+          
+          showStatus('Scan complete', 'success');
+          renderResults();
+          break;
+          
+        case 'apply-complete':
+          applyButton.textContent = 'Apply Fixes';
+          applyButton.disabled = false;
+          
+          if (message.errorMessage) {
+            showStatus(message.errorMessage, 'error');
+            return;
+          }
+          
+          showStatus('Fixes applied successfully', 'success');
+          
+          // Clear results
+          detachedStyles = [];
+          matchResults = [];
+          selectedFixes = {};
+          resultsContainer.classList.add('hidden');
+          break;
+      }
+    };
+  </script>
+</body>
+</html>
